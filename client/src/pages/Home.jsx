@@ -34,7 +34,14 @@ const Home = () => {
           Join a Call
         </button>
       </div>
-      {!isJoin && <MediaPreview onCreateCall={handleCreateCall} />}
+      {!isJoin && (
+        <MediaPreview
+          type="input"
+          onCreateCall={handleCreateCall}
+          width="200px"
+          height="120px"
+        />
+      )}
       {isJoin && (
         <div className="flex flex-col justify-around items-center h-[20vh] border border-gray-400 rounded-md m-2">
           <input
