@@ -1,12 +1,17 @@
-import "./App.css";
-import MediaPreview from "./components/MediaPreview";
+import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import Home from "./pages/Home";
+import CallPage from "./pages/CallPage";
 
 function App() {
   return (
-    <>
-      <h1>WebRtc Call app</h1>
-      <MediaPreview />
-    </>
+    <div className="w-full h-[100vh] flex flex-col justify-center items-center  bg-black text-white ">
+      <Router>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/call/:roomId" element={<CallPage />} />
+        </Routes>
+      </Router>
+    </div>
   );
 }
 
