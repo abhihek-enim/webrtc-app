@@ -1,19 +1,18 @@
 /* eslint-disable react/prop-types */
-// MediaPreview.jsx
-import { useEffect, useRef, useState } from "react";
+
+import { useEffect, useState } from "react";
 import { CiVideoOff, CiVideoOn } from "react-icons/ci";
 
 const MediaPreview = ({
-  type = "input", // "input", "local", or "remote"
-  videoRef: providedVideoRef,
-  stream: providedStream, // Changed from mediaStream to stream for clarity
+  type = "input",
+  stream: providedStream,
   onCreateCall,
   width,
   height,
   autoStart = false,
+  onStreamReady, // New callback to notify parent of stream
 }) => {
-  const internalVideoRef = useRef(null);
-  const videoRef = providedVideoRef || internalVideoRef;
+  const [videoElement, setVideoElement] = useState(null);
   const [showVideo, setShowVideo] = useState(autoStart);
   const [localStream, setLocalStream] = useState(null);
 
@@ -25,16 +24,21 @@ const MediaPreview = ({
           audio: true,
         });
         setLocalStream(stream);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        if (videoElement) {
+          videoElement.srcObject = stream;
+        }
+        if (onStreamReady) {
+          onStreamReady(stream);
         }
       } catch (error) {
         console.error("Error accessing media devices:", error);
       }
-    } else if ((type === "local" || type === "remote") && providedStream) {
-      if (videoRef.current) {
-        videoRef.current.srcObject = providedStream;
-      }
+    } else if (
+      (type === "local" || type === "remote") &&
+      providedStream &&
+      videoElement
+    ) {
+      videoElement.srcObject = providedStream;
     }
   };
 
@@ -43,8 +47,8 @@ const MediaPreview = ({
       localStream.getTracks().forEach((track) => track.stop());
       setLocalStream(null);
     }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+    if (videoElement) {
+      videoElement.srcObject = null;
     }
   };
 
@@ -62,11 +66,11 @@ const MediaPreview = ({
     if (
       (type === "local" || type === "remote") &&
       providedStream &&
-      videoRef.current
+      videoElement
     ) {
-      videoRef.current.srcObject = providedStream;
+      videoElement.srcObject = providedStream;
     }
-  }, [providedStream, type]);
+  }, [providedStream, type, videoElement]);
 
   return (
     <div className="flex flex-col justify-center items-center w-full">
@@ -80,7 +84,7 @@ const MediaPreview = ({
           </div>
         ) : (
           <video
-            ref={videoRef}
+            ref={(el) => setVideoElement(el)}
             autoPlay
             playsInline
             muted={type === "local" || type === "input"}
@@ -90,12 +94,12 @@ const MediaPreview = ({
         {type === "input" && (
           <div
             onClick={() => setShowVideo(!showVideo)}
-            className="absolute bottom-0 left-[45%] bg-white rounded-md cursor-pointer active:scale-95 p-2"
+            className="absolute bottom-5 left-[45%] bg-white rounded-md cursor-pointer active:scale-95 p-2"
           >
             {!showVideo ? (
-              <CiVideoOn className="text-black" size={20} />
+              <CiVideoOn className="text-black" size={24} />
             ) : (
-              <CiVideoOff className="text-black" size={20} />
+              <CiVideoOff className="text-black" size={24} />
             )}
           </div>
         )}

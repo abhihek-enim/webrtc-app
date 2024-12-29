@@ -1,29 +1,29 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import MediaPreview from "../components/MediaPreview";
 
 const CallPage = () => {
   const { roomId } = useParams();
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
-  const peerConnection = useRef(null);
-  const socket = useRef(null);
-  const localStream = useRef(null);
-  const remoteStream = useRef(null);
+
+  const [peerConnection, setPeerConnection] = useState(null);
+  const [socket, setSocket] = useState(null);
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
 
   const initializeSocket = () => {
-    socket.current = io(import.meta.env.VITE_REMOTE_URL);
-    socket.current.emit("join-room", roomId);
-    socket.current.on("signal", handleSignal);
+    const newSocket = io(import.meta.env.VITE_REMOTE_URL);
+    newSocket.emit("join-room", roomId);
+    newSocket.on("signal", handleSignal);
+    setSocket(newSocket);
   };
 
   const handleSignal = async ({ senderId, data }) => {
-    if (!peerConnection.current) return;
+    if (!peerConnection) return;
 
     if (data.candidate) {
       try {
-        await peerConnection.current.addIceCandidate(data.candidate);
+        await peerConnection.addIceCandidate(data.candidate);
       } catch (e) {
         console.error("Error adding ICE candidate:", e);
       }
@@ -31,16 +31,58 @@ const CallPage = () => {
     if (data.sdp) {
       try {
         if (data.sdp.type === "offer") {
-          await peerConnection.current.setRemoteDescription(data.sdp);
-          const answer = await peerConnection.current.createAnswer();
-          await peerConnection.current.setLocalDescription(answer);
-          socket.current.emit("signal", { roomId, data: { sdp: answer } });
+          await peerConnection.setRemoteDescription(data.sdp);
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          socket.emit("signal", { roomId, data: { sdp: answer } });
         } else if (data.sdp.type === "answer") {
-          await peerConnection.current.setRemoteDescription(data.sdp);
+          await peerConnection.setRemoteDescription(data.sdp);
         }
       } catch (e) {
         console.error("Error handling SDP:", e);
       }
+    }
+  };
+
+  const setupPeerConnection = (stream) => {
+    const configuration = {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    };
+
+    const newPeerConnection = new RTCPeerConnection(configuration);
+
+    stream.getTracks().forEach((track) => {
+      newPeerConnection.addTrack(track, stream);
+    });
+
+    newPeerConnection.ontrack = (event) => {
+      setRemoteStream(event.streams[0]);
+    };
+
+    newPeerConnection.onicecandidate = (event) => {
+      if (event.candidate && socket) {
+        socket.emit("signal", {
+          roomId,
+          data: { candidate: event.candidate },
+        });
+      }
+    };
+
+    setPeerConnection(newPeerConnection);
+  };
+
+  const createAndSendOffer = async () => {
+    if (!peerConnection || !socket) return;
+
+    try {
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      socket.emit("signal", {
+        roomId,
+        data: { sdp: peerConnection.localDescription },
+      });
+    } catch (error) {
+      console.error("Error creating offer:", error);
     }
   };
 
@@ -50,7 +92,7 @@ const CallPage = () => {
         video: true,
         audio: true,
       });
-      localStream.current = stream;
+      setLocalStream(stream);
       setupPeerConnection(stream);
       createAndSendOffer();
     } catch (error) {
@@ -58,56 +100,18 @@ const CallPage = () => {
     }
   };
 
-  const setupPeerConnection = (stream) => {
-    const configuration = {
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    };
-
-    peerConnection.current = new RTCPeerConnection(configuration);
-
-    stream.getTracks().forEach((track) => {
-      peerConnection.current.addTrack(track, stream);
-    });
-
-    peerConnection.current.ontrack = (event) => {
-      remoteStream.current = event.streams[0];
-    };
-
-    peerConnection.current.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket.current?.emit("signal", {
-          roomId,
-          data: { candidate: event.candidate },
-        });
-      }
-    };
-  };
-
-  const createAndSendOffer = async () => {
-    try {
-      const offer = await peerConnection.current.createOffer();
-      await peerConnection.current.setLocalDescription(offer);
-      socket.current.emit("signal", {
-        roomId,
-        data: { sdp: peerConnection.current.localDescription },
-      });
-    } catch (error) {
-      console.error("Error creating offer:", error);
-    }
-  };
-
   const handleEndCall = () => {
-    if (localStream.current) {
-      localStream.current.getTracks().forEach((track) => track.stop());
-      localStream.current = null;
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
+      setLocalStream(null);
     }
-    if (peerConnection.current) {
-      peerConnection.current.close();
-      peerConnection.current = null;
+    if (peerConnection) {
+      peerConnection.close();
+      setPeerConnection(null);
     }
-    if (socket.current) {
-      socket.current.disconnect();
-      socket.current = null;
+    if (socket) {
+      socket.disconnect();
+      setSocket(null);
     }
   };
 
@@ -127,8 +131,7 @@ const CallPage = () => {
         <div className="w-[500px] h-[300px] rounded-md">
           <MediaPreview
             type="remote"
-            videoRef={remoteVideoRef}
-            stream={remoteStream.current}
+            stream={remoteStream}
             width="500px"
             height="300px"
             autoStart={true}
@@ -137,8 +140,7 @@ const CallPage = () => {
         <div className="w-[200px] h-[120px] absolute bottom-1 right-1 rounded-md">
           <MediaPreview
             type="local"
-            videoRef={localVideoRef}
-            stream={localStream.current}
+            stream={localStream}
             width="200px"
             height="120px"
             autoStart={true}
