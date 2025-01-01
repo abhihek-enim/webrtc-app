@@ -77,6 +77,8 @@ const Home = () => {
             localStream={localStream}
             generateStream={handleGenerateStream}
             stopStream={handleStopStream}
+            height="150px"
+            width="300px"
           />
           <button
             onClick={handleStartCall}
