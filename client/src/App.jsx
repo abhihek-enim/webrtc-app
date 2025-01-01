@@ -4,7 +4,7 @@ import CallPage from "./pages/CallPage";
 
 function App() {
   return (
-    <div className="w-full h-[100vh] flex flex-col justify-center items-center  bg-black text-white ">
+    <div className="w-full h-[100vh] flex flex-col justify-center items-center  bg-black text-white font-mono ">
       <Router>
         <Routes>
           <Route path="/" element={<Home />} />
